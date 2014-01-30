@@ -1,7 +1,3 @@
-/* fpont 12/99 */
-/* pont.net    */
-/* udpClient.c */
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -11,6 +7,7 @@
 #include <unistd.h>
 #include <string.h> /* memset() */
 #include <sys/time.h> /* select() */ 
+#include <stdlib.h>
 
 #define REMOTE_SERVER_PORT 1500
 #define MAX_MSG 100
@@ -61,15 +58,6 @@ int main(int argc, char *argv[]) {
 
 
 	/* send data */
-/*	for(i=2;i<argc;i++) {
-		rc = sendto(sd, argv[i], strlen(argv[i])+1, 0,(struct sockaddr *) &remoteServAddr,sizeof(remoteServAddr));
-
-		if(rc<0) {
-			printf("%s: cannot send data %d \n",argv[0],i-1);
-			close(sd);
-			exit(1);
-		}
-	}*/
 	while(1) {
 		printf("type data to send\n");
 		char buff[128];
@@ -84,7 +72,7 @@ int main(int argc, char *argv[]) {
 			exit(1);
 		}
 		char msg[128];
-		int serLen = sizeof(remoteServAddr);
+		unsigned int serLen = sizeof(remoteServAddr);
 		int n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &remoteServAddr,&serLen);
 
 		if(n<0) {

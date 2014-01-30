@@ -1,7 +1,3 @@
-/* fpont 12/99 */
-/* pont.net    */
-/* udpServer.c */
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,13 +6,15 @@
 #include <stdio.h>
 #include <unistd.h> /* close() */
 #include <string.h> /* memset() */
+#include <stdlib.h>
 
 #define LOCAL_SERVER_PORT 1500
 #define MAX_MSG 100
 
 int main(int argc, char *argv[]) {
 
-	int sd, rc, n, cliLen;
+	int sd, rc, n;
+	unsigned int cliLen;
 	struct sockaddr_in cliAddr, servAddr;
 	char msg[MAX_MSG];
 
