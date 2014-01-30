@@ -6,17 +6,34 @@
 #include <stdio.h>
 #include <unistd.h> /* close() */
 #include <string.h> /* memset() */
-#include <stdlib.h>
+#include <pthread.h>
 
 #define LOCAL_SERVER_PORT 1500
 #define MAX_MSG 100
 
+int sd, rc, n, cliLen;
+struct sockaddr_in cliAddr, servAddr;
+char msg[MAX_MSG];
+pthread_cond_t cond1 = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond2 = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void * sendfunc() {
+	while(1) {
+		pthread_cond_signal(&cond2);
+		pthread_cond_wait(&cond1,&mutex);
+		int rc = sendto(sd,msg, strlen(msg)+1, 0,(struct sockaddr *) &cliAddr,sizeof(cliAddr));
+		if (rc < 0) {
+			printf("client : cannot send data \n");
+			close(sd);
+			exit(1);
+		}
+	}
+
+}
+
 int main(int argc, char *argv[]) {
 
-	int sd, rc, n;
-	unsigned int cliLen;
-	struct sockaddr_in cliAddr, servAddr;
-	char msg[MAX_MSG];
 
 	/* socket creation */
 	sd=socket(AF_INET, SOCK_DGRAM, 0);
@@ -37,14 +54,15 @@ int main(int argc, char *argv[]) {
 
 	printf("%s: waiting for data on port UDP %u\n", argv[0],LOCAL_SERVER_PORT);
 
+	pthread_t sender;
+	pthread_create(&sender,NULL,sendfunc,NULL);
 	/* server infinite loop */
 	while(1) {
 
 		/* init buffer */
+		pthread_cond_wait(&cond2,&mutex);
 		memset(msg,0x0,MAX_MSG);
 
-
-		/* receive message */
 		cliLen = sizeof(cliAddr);
 		n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &cliAddr, &cliLen);
 
@@ -52,15 +70,8 @@ int main(int argc, char *argv[]) {
 			printf("%s: cannot receive data \n",argv[0]);
 			continue;
 		}
-
-		/* print received message */
 		printf("%s: from %s:UDP%u : %s \n",argv[0],inet_ntoa(cliAddr.sin_addr),ntohs(cliAddr.sin_port),msg);
-		int rc = sendto(sd,msg, strlen(msg)+1, 0,(struct sockaddr *) &cliAddr,sizeof(cliAddr));
-		if (rc < 0) {
-			printf("client : cannot send data \n");
-			close(sd);
-			exit(1);
-		}
+		pthread_cond_signal(&cond1);
 
 	}/* end of server infinite loop */
 
