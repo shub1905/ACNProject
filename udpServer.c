@@ -57,6 +57,12 @@ int main(int argc, char *argv[]) {
 
 		/* print received message */
 		printf("%s: from %s:UDP%u : %s \n",argv[0],inet_ntoa(cliAddr.sin_addr),ntohs(cliAddr.sin_port),msg);
+		int rc = sendto(sd,msg, strlen(msg)+1, 0,(struct sockaddr *) &cliAddr,sizeof(cliAddr));
+		if (rc < 0) {
+			printf("client : cannot send data \n");
+			close(sd);
+			exit(1);
+		}
 
 	}/* end of server infinite loop */
 

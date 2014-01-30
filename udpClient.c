@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 
 
 	/* send data */
-	for(i=2;i<argc;i++) {
+/*	for(i=2;i<argc;i++) {
 		rc = sendto(sd, argv[i], strlen(argv[i])+1, 0,(struct sockaddr *) &remoteServAddr,sizeof(remoteServAddr));
 
 		if(rc<0) {
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 			close(sd);
 			exit(1);
 		}
-	}
+	}*/
 	while(1) {
 		printf("type data to send\n");
 		char buff[128];
@@ -83,6 +83,16 @@ int main(int argc, char *argv[]) {
 			close(sd);
 			exit(1);
 		}
+		char msg[128];
+		int serLen = sizeof(remoteServAddr);
+		int n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &remoteServAddr,&serLen);
+
+		if(n<0) {
+			printf("%s: cannot receive data \n",argv[0]);
+			continue;
+		}
+		printf("data received = %s\n",msg);
+
 
 	}
 	return 1;
