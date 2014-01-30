@@ -1,92 +1,137 @@
-class tcp
+#include "udp_to_tcp.h"
+
+int main()
 {
-  void listen()
-  {
-    int sd, rc, n;
-    char msg[MAX_MSG];
-    struct sockaddr_in selfAddress;
+  cout << "Compiled" << endl;
+}
 
-    sd=socket(AF_INET, SOCK_DGRAM, 0);
-    if(sd<0) {
-      printf("Cannot open socket \n");
-      exit(1);
-    }
+void tcp::listen()
+{
+  int sd, rc, n;
+  struct sockaddr_in selfAddress;
 
-    this->selfAddr.sin_family = AF_INET;
-    this->selfAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    this->selfAddr.sin_port = htons(LOCAL_SERVER_PORT);
-    rc = bind (sd, (struct sockaddr *) &selfAddr,sizeof(selfAddr));
-    if(rc<0) {
-      printf("Cannot bind port number %d \n", LOCAL_SERVER_PORT);
-      exit(1);
-    }
-    printf("Waiting for data on port UDP %u\n", LOCAL_SERVER_PORT);
-  }
-  
-  int establish()
-  {
-    int sd, rc, i;
-    struct sockaddr_in cliAddr;
-    struct hostent *h;
-
-    h = gethostbyname(this->ip.c_str());
-    if(h==NULL) {
-      printf("Unknown host '%s' \n", this->ip.c_str());
-      exit(1);
-    }
-
-    printf("Sending data to '%s' (IP : %s) \n", h->h_name,inet_ntoa(*(struct in_addr *)h->h_addr_list[0]));
-
-    this->remoteAddress.sin_family = h->h_addrtype;
-    memcpy((char *) &this->remoteAddress.sin_addr.s_addr,h->h_addr_list[0], h->h_length);
-    this->remoteAddress.sin_port = htons(REMOTE_SERVER_PORT);
-
-    /* socket creation */
-    sd = socket(AF_INET,SOCK_DGRAM,0);
-    if(sd<0) {
-      printf("Cannot open socket \n");
-      exit(1);
-    }
-
-    /* bind any port */
-    cliAddr.sin_family = AF_INET;
-    cliAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    cliAddr.sin_port = htons(0);
-
-    rc = bind(sd, (struct sockaddr *) &cliAddr, sizeof(cliAddr));
-    if(rc<0) {
-      printf("Cannot bind port\n");
-      exit(1);
-    }
+  sd=socket(AF_INET, SOCK_DGRAM, 0);
+  if(sd<0) {
+    printf("Cannot open socket \n");
+    exit(1);
   }
 
-  bool receivePacket(string &data)
-  {
-    /* server infinite loop */
-    while(1) {
-
-      /* init buffer */
-      memset(msg,0x0,MAX_MSG);
-
-
-      /* receive message */
-      cliLen = sizeof(cliAddr);
-      n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &cliAddr, &cliLen);
-
-      if(n<0) {
-	printf("Cannot receive data \n");
-	continue;
-      }
-
-      /* print received message */
-      printf("%s: from %s:UDP%u : %s \n",argv[0],inet_ntoa(cliAddr.sin_addr),ntohs(cliAddr.sin_port),msg);
-      int rc = sendto(sd,msg, strlen(msg)+1, 0,(struct sockaddr *) &cliAddr,sizeof(cliAddr));
-      if (rc < 0) {
-	printf("client : cannot send data \n");
-	close(sd);
-	exit(1);
-      }
-
-    }/* end of server infinite loop */
+  selfAddress.sin_family = AF_INET;
+  selfAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+  selfAddress.sin_port = htons(LOCAL_SERVER_PORT);
+  rc = bind (sd, (struct sockaddr *) &selfAddress,sizeof(selfAddress));
+  if(rc<0) {
+    printf("Cannot bind port number %d \n", LOCAL_SERVER_PORT);
+    exit(1);
   }
+  this->sock = sd;
+
+  /* SERVER SIDE HANDSHAKE */
+retry_receive:
+  rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
+  if(rc<0)
+  {
+    goto retry_receive;
+  }
+  tcp_header header;
+  header = *(tcp_header *)msg;
+
+  this->seqnumber = (rand()%10)*100;
+  this->sendack = header.seqNum;
+  this->sendPacket("SYN+ACK PACKET",this->sendack+1,true,false);
+
+  rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
+  if(rc<0)
+  {
+    cout << "SYN chutiyapa" << endl;
+    exit(1);
+  }
+  header = *(tcp_header *)recv_packet;
+
+  if((header.permissions2 | 16) == 1)
+  {
+    this->connectionEstablished = true;
+  }
+  else
+  {
+    cout << "SYN chutiyapa unexpected" << endl;
+    exit(1);
+  }
+}
+
+int tcp::establish()
+{
+  int sd, rc, i;
+  struct sockaddr_in cliAddr;
+  struct hostent *h;
+  char msg[MAX_MSG];
+  memset(msg,0,MAX_MSG);
+  unsigned int len = sizeof(this->remoteAddress);
+
+  h = gethostbyname(this->ip.c_str());
+  if(h==NULL) 
+  {
+    cout << this->ip << "Unknown Host" << endl;
+    exit(1);
+  }
+
+  this->remoteAddress.sin_family = h->h_addrtype;
+  memcpy((char *) &this->remoteAddress.sin_addr.s_addr,h->h_addr_list[0], h->h_length);
+  this->remoteAddress.sin_port = htons(REMOTE_SERVER_PORT);
+
+  sd = socket(AF_INET,SOCK_DGRAM,0);
+  if(sd<0)
+  {
+    printf("Cannot open socket \n");
+    exit(1);
+  }
+
+  cliAddr.sin_family = AF_INET;
+  cliAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  cliAddr.sin_port = htons(0);
+
+  rc = bind(sd, (struct sockaddr *) &cliAddr, sizeof(cliAddr));
+  if(rc<0)
+  {
+    printf("Cannot bind port\n");
+    exit(1);
+  }
+  this->sock = sd;
+
+  struct timeval timeout;      
+  timeout.tv_sec = TIMEOUT_VAL;
+  timeout.tv_usec = 0;
+  if (setsockopt (this->socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+  {
+    error("setsockopt failed\n");
+  }
+
+  /* CLIENT SIDE HANDSHAKE IMPLEMENTATION
+   * send syn
+   * receive syn+ack
+   * send ack
+   */
+  this->seqnumber = (rand()%10)*100;
+retry_send_syn:
+  this->sendPacket("SYN PACKET",0,true,false);
+get_next_packet:
+  rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
+  if(rc<0)
+  {
+    goto retry_send_syn;
+  }
+  tcp_header header;
+  header = *(tcp_header *)msg;
+
+  if((header.permissions2 | 16) == 1 && (header.permissions2 | 2) == 1)
+  {
+    this->sendack = header.seqnumber - 1;
+    this->sendPacket("ACK PACKET",this->seqnumber + 1);
+    this->connectionEstablished = true;
+  }
+  else
+  {
+    goto get_next_packet;
+  }
+  return this->sock;
 }
