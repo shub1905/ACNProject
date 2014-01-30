@@ -3,55 +3,48 @@ class tcp
   void listen()
   {
     int sd, rc, n;
-    struct sockaddr_in servAddr;
     char msg[MAX_MSG];
+    struct sockaddr_in selfAddress;
 
     sd=socket(AF_INET, SOCK_DGRAM, 0);
     if(sd<0) {
-      printf("%s: cannot open socket \n",argv[0]);
+      printf("Cannot open socket \n");
       exit(1);
     }
 
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servAddr.sin_port = htons(LOCAL_SERVER_PORT);
-    rc = bind (sd, (struct sockaddr *) &servAddr,sizeof(servAddr));
+    this->selfAddr.sin_family = AF_INET;
+    this->selfAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    this->selfAddr.sin_port = htons(LOCAL_SERVER_PORT);
+    rc = bind (sd, (struct sockaddr *) &selfAddr,sizeof(selfAddr));
     if(rc<0) {
-      printf("%s: cannot bind port number %d \n",argv[0], LOCAL_SERVER_PORT);
+      printf("Cannot bind port number %d \n", LOCAL_SERVER_PORT);
       exit(1);
     }
-    printf("%s: waiting for data on port UDP %u\n", argv[0],LOCAL_SERVER_PORT);
+    printf("Waiting for data on port UDP %u\n", LOCAL_SERVER_PORT);
   }
   
   int establish()
   {
     int sd, rc, i;
-    struct sockaddr_in cliAddr, remoteServAddr;
+    struct sockaddr_in cliAddr;
     struct hostent *h;
 
-    /* check command line args */
-    if(argc<3) {
-      printf("usage : %s <server> <data1> ... <dataN> \n", argv[0]);
-      exit(1);
-    }
-
-    /* get server IP address (no check if input is IP address or DNS name */
-    h = gethostbyname(argv[1]);
+    h = gethostbyname(this->ip.c_str());
     if(h==NULL) {
-      printf("%s: unknown host '%s' \n", argv[0], argv[1]);
+      printf("Unknown host '%s' \n", this->ip.c_str());
       exit(1);
     }
 
-    printf("%s: sending data to '%s' (IP : %s) \n", argv[0], h->h_name,inet_ntoa(*(struct in_addr *)h->h_addr_list[0]));
+    printf("Sending data to '%s' (IP : %s) \n", h->h_name,inet_ntoa(*(struct in_addr *)h->h_addr_list[0]));
 
-    remoteServAddr.sin_family = h->h_addrtype;
-    memcpy((char *) &remoteServAddr.sin_addr.s_addr,h->h_addr_list[0], h->h_length);
-    remoteServAddr.sin_port = htons(REMOTE_SERVER_PORT);
+    this->remoteAddress.sin_family = h->h_addrtype;
+    memcpy((char *) &this->remoteAddress.sin_addr.s_addr,h->h_addr_list[0], h->h_length);
+    this->remoteAddress.sin_port = htons(REMOTE_SERVER_PORT);
 
     /* socket creation */
     sd = socket(AF_INET,SOCK_DGRAM,0);
     if(sd<0) {
-      printf("%s: cannot open socket \n",argv[0]);
+      printf("Cannot open socket \n");
       exit(1);
     }
 
@@ -62,7 +55,7 @@ class tcp
 
     rc = bind(sd, (struct sockaddr *) &cliAddr, sizeof(cliAddr));
     if(rc<0) {
-      printf("%s: cannot bind port\n", argv[0]);
+      printf("Cannot bind port\n");
       exit(1);
     }
   }
@@ -81,7 +74,7 @@ class tcp
       n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &cliAddr, &cliLen);
 
       if(n<0) {
-	printf("%s: cannot receive data \n",argv[0]);
+	printf("Cannot receive data \n");
 	continue;
       }
 

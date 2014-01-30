@@ -11,8 +11,13 @@
 #include <sys/time.h> /* select() */ 
 #include <stdlib.h>
 
-struct tcp_header
+#define LOCAL_SERVER_PORT 1500
+#define REMOTE_SERVER_PORT 1500
+#define MAX_MSG 100
+
+typedef struct tcp_header
 {
+  int length;
   int seqNum;
   int ackNum;
   char permissions1;
@@ -20,14 +25,14 @@ struct tcp_header
   short windowSize;
   short checksum;
   short urgentPointer;
-};
+} tcp_header;
 
 class tcp
 {
   string ip;
   int port;
   int socket;
-  sockaddr_in remoteAddress;
+  struct sockaddr_in remoteAddress;
   bool connectionEstablished;
 
   int establish();
