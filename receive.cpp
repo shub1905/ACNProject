@@ -84,5 +84,10 @@ bool receive(string &data) {
 }
 
 int readRec(string &data) {
-	int readtill=0;
+    int origrecvp =recvp;
+    int totalread = (origrecvp+BUF_SIZE_OS - readp) % BUF_SIZE_OS ;
+    for(int i=0;i<totalread;i++)
+   	 data[i] = dataBuffer[(readp+i) % BUF_SIZE_OS];
+    readp=origrecvp;
+    return totalread;
 }
