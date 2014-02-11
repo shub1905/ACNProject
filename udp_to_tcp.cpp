@@ -1,14 +1,12 @@
 #include "udp_to_tcp.h"
 
-int main()
-{
-  cout << "Compiled" << endl;
-}
-
 void tcp::listen()
 {
   int sd, rc, n;
   struct sockaddr_in selfAddress;
+  char msg[MAX_MSG];
+  memset(msg,0,MAX_MSG);
+  unsigned int len = sizeof(this->remoteAddress);
 
   sd=socket(AF_INET, SOCK_DGRAM, 0);
   if(sd<0) {
@@ -46,9 +44,9 @@ retry_receive:
     cout << "SYN chutiyapa" << endl;
     exit(1);
   }
-  header = *(tcp_header *)recv_packet;
+  header = *(tcp_header *)msg;
 
-  if((header.permissions2 | 16) == 1)
+  if((header.permissions2 & 16) == 16)
   {
     this->connectionEstablished = true;
   }
@@ -101,9 +99,9 @@ int tcp::establish()
   struct timeval timeout;      
   timeout.tv_sec = TIMEOUT_VAL;
   timeout.tv_usec = 0;
-  if (setsockopt (this->socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+  if (setsockopt (this->sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
   {
-    error("setsockopt failed\n");
+    cerr << "setsockopt failed" << endl;
   }
 
   /* CLIENT SIDE HANDSHAKE IMPLEMENTATION
@@ -115,17 +113,21 @@ int tcp::establish()
 retry_send_syn:
   this->sendPacket("SYN PACKET",0,true,false);
 get_next_packet:
+  cout << "in get next packet" << endl;
   rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
   if(rc<0)
   {
+    cout << "retrying send syn" << endl;
     goto retry_send_syn;
   }
   tcp_header header;
   header = *(tcp_header *)msg;
 
-  if((header.permissions2 | 16) == 1 && (header.permissions2 | 2) == 1)
+  cout << "what?" << header.length << endl;
+  if((header.permissions2 & 16) == 16 && (header.permissions2 & 2) == 2)
   {
-    this->sendack = header.seqnumber - 1;
+    cout << "question" << endl;
+    this->sendack = header.seqNum - 1;
     this->sendPacket("ACK PACKET",this->seqnumber + 1);
     this->connectionEstablished = true;
   }
@@ -134,4 +136,109 @@ get_next_packet:
     goto get_next_packet;
   }
   return this->sock;
+}
+
+tcp::tcp()
+{
+  this->connectionEstablished = false;
+  pthread_mutex_init(&acklock,NULL);
+  pthread_mutex_init(&pktloss,NULL);
+  pthread_mutex_init(&timeoutlock,NULL);
+}
+
+int tcp::getCWsize()
+{
+  return CWSIZE;
+}
+
+int tcp::send(string &data)
+{
+  int acknum,bytestosend,origseqnum = seqnumber;
+  pthread_mutex_lock(&acklock);
+  datatosend = data.length();
+  pthread_mutex_unlock(&acklock);
+  for(int i=0;i<data.length();) {
+    bool retransmit = false;
+    pthread_mutex_lock(&timeoutlock);
+    if(packetTimeout){
+      int lastackdata = recvack - origseqnum;
+      i = lastackdata;
+      packetTimeout = false;
+      retransmit = true;
+    }
+    pthread_mutex_unlock(&timeoutlock);
+
+    pthread_mutex_lock(&pktloss);
+    if(numacks >= 3) {
+      int lastackdata = recvack - origseqnum;
+      i = lastackdata;
+      retransmit = true;
+    }
+    pthread_mutex_unlock(&pktloss);
+
+    bytestosend = min(data.length()-i,PACKETSIZE);
+
+    pthread_mutex_lock(&acklock);
+    if(retransmit){
+      seqnumber  =recvack;
+    }
+    if( (seqnumber - recvack ) > getCWsize()){
+      pthread_mutex_unlock(&acklock);
+      continue;
+    }
+    datatosend-=bytestosend;
+    if(sendack){
+      acknum = sendack;
+      sendack = 0;
+    }
+    else{
+      acknum = 0;
+    }
+    pthread_mutex_unlock(&acklock);
+    if(sendPacket(data.substr(i,bytestosend), acknum)){
+      i+=bytestosend;
+    }
+    else{
+      datatosend+=bytestosend;
+    }
+  }
+  return data.length();
+}
+
+bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmission)
+{
+  char * buf = new char[sizeof(tcp_header)+data.length()+1];
+  memset(buf,0,sizeof(tcp_header));
+  tcp_header * header = (tcp_header *)buf;
+  header->length = sizeof(tcp_header) + data.length();
+  header->seqNum = seqnumber;
+  header->ackNum = acknum;
+  header->permissions2|= (acknum>0 ? (16)  : 0);
+  header->permissions2|= ( syn ?(2) : 0);
+  header->permissions2|= (fin ? (1) :0  );
+  strncpy(buf+sizeof(tcp_header),data.c_str(),data.length()); /*Assumes '\0' is appended*/
+
+  int packetsize = header->length + 1 ;
+  //	assert packetsize (<UDPPACKETSIZE);
+  int bytessend = sendto(sock, buf , packetsize, 0,(struct sockaddr *) &remoteAddress,sizeof(remoteAddress));
+  delete buf;
+
+  thread_args t_arg;
+
+  if (bytessend == packetsize){
+    seqnumber+=( retransmission ? 0: data.length()  ) ;
+    if(data.length()){
+      pthread_t *timeoutthread = new pthread_t();
+      t_arg.object_pointer= this;
+      t_arg.seqNum = header->seqNum;
+      pthread_create(timeoutthread,NULL,checktimeout,&t_arg);
+    }
+    return true;
+  }
+  return false;
+}
+
+long long min(long long x, long long y)
+{
+  return (x<y)?x:y;
 }

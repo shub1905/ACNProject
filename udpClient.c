@@ -12,7 +12,6 @@
 #define REMOTE_SERVER_PORT 1500
 #define MAX_MSG 100
 
-
 int main(int argc, char *argv[]) {
 
 	int sd, rc, i;
