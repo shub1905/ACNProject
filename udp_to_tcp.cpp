@@ -65,7 +65,6 @@ void tcp::receiveLoop() {
   //tcp_header.length = length of total packet
   //tcp class contains seqNum
 
-  cout<<"in this shit"<< endl;
   char buffer[MAX_MSG];
   tcp_header header;
   int lengthDataRecv = 0;
@@ -109,7 +108,7 @@ void tcp::receiveLoop() {
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
-	  sendPacket(NULL,this->seqnumberRemote);
+	  sendPacket("",this->seqnumberRemote);
 	}
 	//access ends
       }
@@ -133,13 +132,17 @@ int tcp::receive(string &data) {
 
 bool tcp::receivePacket(char *data) {
   unsigned int remoteLen = sizeof(this->remoteAddress);
-  int n = recvfrom(sock,data,sizeof(tcp_header),0,(struct sockaddr *) &this->remoteAddress,&remoteLen);
+  int n = recvfrom(sock, data, sizeof(int), MSG_PEEK, (struct sockaddr *) &this->remoteAddress,&remoteLen);
+  int total_packet_size = *(int *)data;
+  cout << "packet size" << total_packet_size << endl;
+  n = recvfrom(sock,data,total_packet_size,0,(struct sockaddr *) &this->remoteAddress,&remoteLen);
   tcp_header *temp_header = (tcp_header *)data;
   int data_len = temp_header->length - sizeof(tcp_header);
+  cout << "rlength" << temp_header->length << endl;
+  cout << "rseqnum" << temp_header->seqNum << endl;
+  printf("packet recvd : %s\n",data+sizeof(tcp_header));
 
-  n = recvfrom(sock, data+sizeof(tcp_header), data_len, 0, (struct sockaddr *) &this->remoteAddress, &remoteLen);
-  cout << "hello" << endl;
-  if (n<0) {
+  if (n<=0) {
     return false;
   }
   return true;
@@ -183,7 +186,7 @@ int tcp::establish() {
   }
   this->sock = sd;
 
-  struct timeval timeout;      
+  struct timeval timeout;
   timeout.tv_sec = TIMEOUT_VAL;
   timeout.tv_usec = 0;
   if (setsockopt (this->sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
@@ -320,6 +323,9 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   int packetsize = header->length + 1 ;
   //	assert packetsize (<UDPPACKETSIZE);
   int bytessend = sendto(sock, buf , packetsize, 0,(struct sockaddr *) &remoteAddress,sizeof(remoteAddress));
+  cout << "bytes" << bytessend << endl;
+  cout << "length" << header->length << endl;
+  cout << "seqnum" << header->seqNum << endl;
   delete buf;
 
   thread_args t_arg;
