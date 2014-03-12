@@ -20,6 +20,7 @@
 #define PACKETSIZE 1500
 #define CWSIZE 100
 #define TIMEOUT 5
+#define BUF_SIZE_OS 1000
 
 using namespace std;
 
@@ -43,8 +44,7 @@ typedef struct tcp_header
   short urgentPointer;
 } tcp_header;
 
-class tcp
-{
+class tcp {
   public:
     string ip;
     int port;
@@ -52,6 +52,7 @@ class tcp
     struct sockaddr_in remoteAddress;
     bool connectionEstablished;
     int seqnumber; //to set
+    int seqnumberRemote;
     int datatosend;
     int sendack; //to set
     int recvack;
@@ -60,6 +61,11 @@ class tcp
     pthread_mutex_t pktloss;
     pthread_mutex_t timeoutlock;
     bool packetTimeout;
+    char dataBuffer[BUF_SIZE_OS];
+    bool bitmapReceive[BUF_SIZE_OS];
+    int head;
+    int tail;
+    int remoteBaseSeqNumber;
 
     tcp();
     int establish();
@@ -67,11 +73,12 @@ class tcp
     bool kill();
     int send(string &data);
     int receive(string &data);
+    void receiveLoop();
+    bool receivePacket(char *data);
     bool sendPacket(string , int = 0, bool = false, bool = false, bool = false);
-    bool receivePacket(string &data);
     int getCWsize();
-    static void * checktimeout(void *temp_arg)
-    {
+
+    static void * checktimeout(void *temp_arg) {
       thread_args *t_arg = (thread_args *)temp_arg;
       tcp *object = (tcp *)t_arg->object_pointer;
       int seqNumsent = t_arg->seqNum;
@@ -88,6 +95,11 @@ class tcp
 	object->packetTimeout = true;	
 	pthread_mutex_unlock(&(object->timeoutlock));	
       }
+      return NULL;
+    }
+
+    static void * dummyReceiveLoop(void *object) {
+      ((tcp *)object)->receiveLoop();
       return NULL;
     }
 };

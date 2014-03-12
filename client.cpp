@@ -6,4 +6,10 @@ int main()
   u.ip = "localhost";
   u.establish();
   cout << "done client" << endl;
+  string something;
+  while(true) 
+  {
+    u.receive(something);
+  }
+  while(true);
 }

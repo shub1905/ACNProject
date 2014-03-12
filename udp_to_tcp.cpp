@@ -1,7 +1,6 @@
 #include "udp_to_tcp.h"
 
-void tcp::listen()
-{
+void tcp::listen() {
   int sd, rc, n;
   struct sockaddr_in selfAddress;
   char msg[MAX_MSG];
@@ -35,8 +34,10 @@ retry_receive:
   header = *(tcp_header *)msg;
 
   this->seqnumber = (rand()%10)*100;
-  this->sendack = header.seqNum;
-  this->sendPacket("SYN+ACK PACKET",this->sendack+1,true,false);
+  this->recvack = this->seqnumber;
+  this->seqnumberRemote = header.seqNum;
+  this->remoteBaseSeqNumber = header.seqNum;
+  this->sendPacket("SYN+ACK PACKET",this->remoteBaseSeqNumber+1,true,false);
 
   rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
   if(rc<0)
@@ -52,13 +53,99 @@ retry_receive:
   }
   else
   {
-    cout << "SYN chutiyapa unexpected" << endl;
+    cout << "SYN Chutiyapa unexpected" << endl;
     exit(1);
+  }
+  pthread_t* receive_thread = new pthread_t();
+  pthread_create(receive_thread,NULL,dummyReceiveLoop,this);
+}
+
+void tcp::receiveLoop() {
+  //use 3rd last bit of permissions2 for EOF flag	
+  //tcp_header.length = length of total packet
+  //tcp class contains seqNum
+
+  cout<<"in this shit"<< endl;
+  char buffer[MAX_MSG];
+  tcp_header header;
+  int lengthDataRecv = 0;
+
+  while(1) {
+    memset(buffer,0x0,MAX_MSG);
+    if (receivePacket(buffer)) {
+      memcpy((char *)&header,buffer,sizeof(tcp_header));
+
+      if ((header.permissions2 & 0x10) == 1) {
+	pthread_mutex_lock(&pktloss);
+	if (header.ackNum > this->recvack) {
+	  this->recvack = header.ackNum;
+	  this->numacks = 1;
+	} else if (header.ackNum == this->recvack){
+	  this->numacks++;
+	}
+	pthread_mutex_unlock(&pktloss);
+      }
+
+      lengthDataRecv = header.length - sizeof(tcp_header);
+      if (lengthDataRecv > 0 ) {
+	int diff = (head - tail + BUF_SIZE_OS)%BUF_SIZE_OS;
+	if (header.seqNum - this->seqnumberRemote >= diff) {
+	  continue; //packet intentionally dropped outside of buffer
+	}
+	for(int i=0;i<lengthDataRecv;i++) {
+	  this->bitmapReceive[(header.seqNum + BUF_SIZE_OS - this->remoteBaseSeqNumber)%BUF_SIZE_OS] = true;
+	  this->dataBuffer[(header.seqNum + BUF_SIZE_OS - this->remoteBaseSeqNumber)%BUF_SIZE_OS] = buffer[sizeof(tcp_header)+i];
+	}
+	
+	while(bitmapReceive[tail]) {
+	  tail = (tail+1)%BUF_SIZE_OS;
+	  this->seqnumberRemote++;
+	}
+	//protected access
+	pthread_mutex_lock(&acklock);
+	if (datatosend > 0) {
+	  sendack = this->seqnumberRemote;
+	  pthread_mutex_unlock(&acklock);
+	}
+	else {
+	  pthread_mutex_unlock(&acklock);
+	  sendPacket(NULL,this->seqnumberRemote);
+	}
+	//access ends
+      }
+      if ((header.permissions2 & 0x4) == 1) {
+	break;//do something else; designated eofile
+      }
+    }
   }
 }
 
-int tcp::establish()
-{
+int tcp::receive(string &data) {
+  int orig_tail = tail;
+  int totalread = (orig_tail +BUF_SIZE_OS - head) % BUF_SIZE_OS;
+  for(int i=0;i<totalread;i++) {
+    data[i] = dataBuffer[(head+i) % BUF_SIZE_OS];
+    this->bitmapReceive[(head+i) % BUF_SIZE_OS] = false;
+  }
+  head=orig_tail;
+  return totalread;
+}
+
+bool tcp::receivePacket(char *data) {
+  unsigned int remoteLen = sizeof(this->remoteAddress);
+  int n = recvfrom(sock,data,sizeof(tcp_header),0,(struct sockaddr *) &this->remoteAddress,&remoteLen);
+  tcp_header *temp_header = (tcp_header *)data;
+  int data_len = temp_header->length - sizeof(tcp_header);
+
+  n = recvfrom(sock, data+sizeof(tcp_header), data_len, 0, (struct sockaddr *) &this->remoteAddress, &remoteLen);
+  cout << "hello" << endl;
+  if (n<0) {
+    return false;
+  }
+  return true;
+}
+
+int tcp::establish() {
   int sd, rc, i;
   struct sockaddr_in cliAddr;
   struct hostent *h;
@@ -110,24 +197,22 @@ int tcp::establish()
    * send ack
    */
   this->seqnumber = (rand()%10)*100;
+  this->recvack = this->seqnumber;
 retry_send_syn:
   this->sendPacket("SYN PACKET",0,true,false);
 get_next_packet:
-  cout << "in get next packet" << endl;
   rc = recvfrom(this->sock, msg, MAX_MSG, 0, (struct sockaddr *) &this->remoteAddress, &len);
   if(rc<0)
   {
-    cout << "retrying send syn" << endl;
     goto retry_send_syn;
   }
   tcp_header header;
   header = *(tcp_header *)msg;
 
-  cout << "what?" << header.length << endl;
   if((header.permissions2 & 16) == 16 && (header.permissions2 & 2) == 2)
   {
-    cout << "question" << endl;
     this->sendack = header.seqNum - 1;
+    this->remoteBaseSeqNumber = this->sendack;
     this->sendPacket("ACK PACKET",this->seqnumber + 1);
     this->connectionEstablished = true;
   }
@@ -135,24 +220,38 @@ get_next_packet:
   {
     goto get_next_packet;
   }
+  pthread_t* receive_thread = new pthread_t();
+  pthread_create(receive_thread,NULL,dummyReceiveLoop,this);
   return this->sock;
 }
 
-tcp::tcp()
-{
+tcp::tcp() {
   this->connectionEstablished = false;
   pthread_mutex_init(&acklock,NULL);
   pthread_mutex_init(&pktloss,NULL);
   pthread_mutex_init(&timeoutlock,NULL);
+  memset(this->bitmapReceive,false,BUF_SIZE_OS);
+  this->head=this->tail=0;
+  this->datatosend = 0;
+  this->sendack = 0; //to set
+  this->recvack = 0;
+  this->numacks = 0;
+    pthread_mutex_t acklock;
+    pthread_mutex_t pktloss;
+    pthread_mutex_t timeoutlock;
+    bool packetTimeout;
+    char dataBuffer[BUF_SIZE_OS];
+    bool bitmapReceive[BUF_SIZE_OS];
+    int head;
+    int tail;
+    int remoteBaseSeqNumber;
 }
 
-int tcp::getCWsize()
-{
+int tcp::getCWsize() {
   return CWSIZE;
 }
 
-int tcp::send(string &data)
-{
+int tcp::send(string &data) {
   int acknum,bytestosend,origseqnum = seqnumber;
   pthread_mutex_lock(&acklock);
   datatosend = data.length();
@@ -169,7 +268,7 @@ int tcp::send(string &data)
     pthread_mutex_unlock(&timeoutlock);
 
     pthread_mutex_lock(&pktloss);
-    if(numacks >= 3) {
+    if(this->numacks >= 3) {
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       retransmit = true;
@@ -180,7 +279,7 @@ int tcp::send(string &data)
 
     pthread_mutex_lock(&acklock);
     if(retransmit){
-      seqnumber  =recvack;
+      seqnumber  = recvack;
     }
     if( (seqnumber - recvack ) > getCWsize()){
       pthread_mutex_unlock(&acklock);
@@ -205,12 +304,12 @@ int tcp::send(string &data)
   return data.length();
 }
 
-bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmission)
-{
+bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmission) {
   char * buf = new char[sizeof(tcp_header)+data.length()+1];
   memset(buf,0,sizeof(tcp_header));
   tcp_header * header = (tcp_header *)buf;
   header->length = sizeof(tcp_header) + data.length();
+  seqnumber += ( retransmission ? 0: data.length()  ) ;
   header->seqNum = seqnumber;
   header->ackNum = acknum;
   header->permissions2|= (acknum>0 ? (16)  : 0);
@@ -226,7 +325,6 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   thread_args t_arg;
 
   if (bytessend == packetsize){
-    seqnumber+=( retransmission ? 0: data.length()  ) ;
     if(data.length()){
       pthread_t *timeoutthread = new pthread_t();
       t_arg.object_pointer= this;
@@ -234,11 +332,12 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
       pthread_create(timeoutthread,NULL,checktimeout,&t_arg);
     }
     return true;
+  } else {
+    seqnumber -= ( retransmission ? 0: data.length()  ) ;
   }
   return false;
 }
 
-long long min(long long x, long long y)
-{
+long long min(long long x, long long y) {
   return (x<y)?x:y;
 }
