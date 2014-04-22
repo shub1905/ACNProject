@@ -239,15 +239,16 @@ tcp::tcp() {
   this->sendack = 0; //to set
   this->recvack = 0;
   this->numacks = 0;
-    pthread_mutex_t acklock;
-    pthread_mutex_t pktloss;
-    pthread_mutex_t timeoutlock;
-    bool packetTimeout;
-    char dataBuffer[BUF_SIZE_OS];
-    bool bitmapReceive[BUF_SIZE_OS];
-    int head;
-    int tail;
-    int remoteBaseSeqNumber;
+  this->packetTimeout = false;
+  pthread_mutex_t acklock;
+  pthread_mutex_t pktloss;
+  pthread_mutex_t timeoutlock;
+  bool packetTimeout;
+  char dataBuffer[BUF_SIZE_OS];
+  bool bitmapReceive[BUF_SIZE_OS];
+  int head;
+  int tail;
+  int remoteBaseSeqNumber;
 }
 
 int tcp::getCWsize() {
@@ -328,14 +329,14 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   cout << "seqnum" << header->seqNum << endl;
   delete buf;
 
-  thread_args t_arg;
+  thread_args *t_arg = new thread_args();
 
   if (bytessend == packetsize){
     if(data.length()){
       pthread_t *timeoutthread = new pthread_t();
-      t_arg.object_pointer= this;
-      t_arg.seqNum = header->seqNum;
-      pthread_create(timeoutthread,NULL,checktimeout,&t_arg);
+      t_arg->object_pointer= this;
+      t_arg->seqNum = header->seqNum;
+      pthread_create(timeoutthread,NULL,checktimeout,t_arg);
     }
     return true;
   } else {
