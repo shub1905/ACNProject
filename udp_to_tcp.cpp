@@ -1,4 +1,6 @@
 #include "udp_to_tcp.h"
+#define DEBUG false
+#define KNOWL true
 
 void tcp::listen() {
   int sd, rc, n;
@@ -75,7 +77,6 @@ void tcp::receiveLoop() {
       memcpy((char *)&header,buffer,sizeof(tcp_header));
 
       if ((header.permissions2 & 0x10) == 0x10) {
-	cout<< "ALERT:: ACK Received" << this->recvack << endl;
 	pthread_mutex_lock(&pktloss);
 	if (header.ackNum > this->recvack) {
 	  this->recvack = header.ackNum;
@@ -91,7 +92,8 @@ void tcp::receiveLoop() {
 
 	int diff = (head - tail + BUF_SIZE_OS - 1)%BUF_SIZE_OS;
 	if (header.seqNum - this->seqnumberRemote >= diff) {
-	  cout << endl << " I am fucking dropping this packet" << endl;
+	  if(KNOWL)
+	    cout << endl << "Dropping this packet" << endl;
 	  continue; //packet intentionally dropped outside of buffer
 	}
 	for(int i=0;i<lengthDataRecv;i++) {
@@ -140,9 +142,10 @@ bool tcp::receivePacket(char *data) {
   n = recvfrom(sock,data,total_packet_size,0,(struct sockaddr *) &this->remoteAddress,&remoteLen);
   tcp_header *temp_header = (tcp_header *)data;
   int data_len = temp_header->length - sizeof(tcp_header);
-  cout << "rlength" << temp_header->length << endl;
-  cout << "rseqnum" << temp_header->seqNum << endl;
-  printf("packet recvd : %s\n",data+sizeof(tcp_header));
+  if(DEBUG)
+    printf("packet recvd : %s\n",data+sizeof(tcp_header));
+  if(KNOWL)
+    cout << "Packet Received. Bytes recvd " << data_len << endl;
 
   if (n<=0) {
     return false;
@@ -257,9 +260,8 @@ int tcp::send(string &data) {
     bool retransmit = false;
     pthread_mutex_lock(&timeoutlock);
     if(packetTimeout){
-      cout << "came here" << endl;
-      cout << "recvack" << recvack << endl;
-      cout << "origseq" << origseqnum << endl;
+      if(KNOWL)
+	cout << "Packet is time-outing" << endl;
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       packetTimeout = false;
@@ -269,6 +271,8 @@ int tcp::send(string &data) {
 
     pthread_mutex_lock(&pktloss);
     if(this->numacks >= 3) {
+      if(KNOWL)
+	cout << "Triple DUP-ACK Loss" << endl;
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       retransmit = true;
@@ -294,7 +298,8 @@ int tcp::send(string &data) {
       acknum = 0;
     }
     pthread_mutex_unlock(&acklock);
-    cout << "i" << i << endl;
+    if(DEBUG)
+      cout << "i" << i << endl;
     if(sendPacket(data.substr(i,bytestosend), acknum)){
       i+=bytestosend;
     }
@@ -321,9 +326,8 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   int packetsize = header->length + 1 ;
   //	assert packetsize (<UDPPACKETSIZE);
   int bytessend = sendto(sock, buf , packetsize, 0,(struct sockaddr *) &remoteAddress,sizeof(remoteAddress));
-  cout << "bytes" << bytessend << endl;
-  cout << "length" << header->length << endl;
-  cout << "seqnum" << header->seqNum << endl;
+  if(KNOWL)
+    cout << "Packet sent. Bytes sent : " << data.length() << endl;
 
   thread_args *t_arg = new thread_args();
 

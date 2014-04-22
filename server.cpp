@@ -4,14 +4,15 @@ int main()
 {
   tcp t;
   t.listen();
-  cout << "DONE SERVER" << endl;
-  string tmp = "What the fuck is wrong with this piece of shit?";
+  cout << "Server Connection Established" << endl;
+  string tmp = "This is a hello world kind of string";
   string arbit;
-  for(int i=0;i<100000;i++) {
-    arbit = arbit+tmp;
+  for(int j=0;j<10;j++) { 
+    for(int i=0;i<10000;i++) {
+      arbit = arbit+tmp;
+    }
+    t.send(arbit);
   }
-  //cout<< arbit << endl;
-  t.send(arbit);
-  cout << "the send was successful" << endl;
+  cout << "The send was successful" << endl;
   while(true);
 }
