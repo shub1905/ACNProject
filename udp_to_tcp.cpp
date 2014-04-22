@@ -262,7 +262,7 @@ int tcp::send(string &data) {
     pthread_mutex_lock(&timeoutlock);
     if(packetTimeout){
       if(KNOWL)
-	cout << "Packet is time-outing" << endl;
+	cout << "Packet is time-outing " << i<< " "<< recvack<< endl;
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       packetTimeout = false;
