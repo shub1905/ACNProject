@@ -1,9 +1,9 @@
 #include "udp_to_tcp.h"
 
-int main()
+int main(int argc, char **argv)
 {
   tcp u;
-  u.ip = "localhost";
+  u.ip = argv[1];
   u.establish();
   cout << "done client" << endl;
   string something;
