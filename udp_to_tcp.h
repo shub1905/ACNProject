@@ -20,7 +20,7 @@
 #define PACKETSIZE 1500
 #define CWSIZE 100
 #define TIMEOUT 5
-#define BUF_SIZE_OS 1000
+#define BUF_SIZE_OS 1000000
 
 using namespace std;
 

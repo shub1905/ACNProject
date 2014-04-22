@@ -74,7 +74,8 @@ void tcp::receiveLoop() {
     if (receivePacket(buffer)) {
       memcpy((char *)&header,buffer,sizeof(tcp_header));
 
-      if ((header.permissions2 & 0x10) == 1) {
+      if ((header.permissions2 & 0x10) == 0x10) {
+	cout<< "ALERT:: ACK Received" << this->recvack << endl;
 	pthread_mutex_lock(&pktloss);
 	if (header.ackNum > this->recvack) {
 	  this->recvack = header.ackNum;
@@ -87,13 +88,15 @@ void tcp::receiveLoop() {
 
       lengthDataRecv = header.length - sizeof(tcp_header);
       if (lengthDataRecv > 0 ) {
-	int diff = (head - tail + BUF_SIZE_OS)%BUF_SIZE_OS;
+
+	int diff = (head - tail + BUF_SIZE_OS - 1)%BUF_SIZE_OS;
 	if (header.seqNum - this->seqnumberRemote >= diff) {
+	  cout << endl << " I am fucking dropping this packet" << endl;
 	  continue; //packet intentionally dropped outside of buffer
 	}
 	for(int i=0;i<lengthDataRecv;i++) {
-	  this->bitmapReceive[(header.seqNum + BUF_SIZE_OS - this->remoteBaseSeqNumber)%BUF_SIZE_OS] = true;
-	  this->dataBuffer[(header.seqNum + BUF_SIZE_OS - this->remoteBaseSeqNumber)%BUF_SIZE_OS] = buffer[sizeof(tcp_header)+i];
+	  this->bitmapReceive[(header.seqNum + BUF_SIZE_OS + i  - (this->remoteBaseSeqNumber + lengthDataRecv))%BUF_SIZE_OS] = true;
+	  this->dataBuffer[(header.seqNum + BUF_SIZE_OS + i  - (this->remoteBaseSeqNumber + lengthDataRecv))%BUF_SIZE_OS] = buffer[sizeof(tcp_header)+i];
 	}
 	
 	while(bitmapReceive[tail]) {
@@ -108,7 +111,7 @@ void tcp::receiveLoop() {
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
-	  sendPacket("",this->seqnumberRemote);
+	  sendPacket("",header.seqNum);
 	}
 	//access ends
       }
@@ -134,7 +137,6 @@ bool tcp::receivePacket(char *data) {
   unsigned int remoteLen = sizeof(this->remoteAddress);
   int n = recvfrom(sock, data, sizeof(int), MSG_PEEK, (struct sockaddr *) &this->remoteAddress,&remoteLen);
   int total_packet_size = *(int *)data;
-  cout << "packet size" << total_packet_size << endl;
   n = recvfrom(sock,data,total_packet_size,0,(struct sockaddr *) &this->remoteAddress,&remoteLen);
   tcp_header *temp_header = (tcp_header *)data;
   int data_len = temp_header->length - sizeof(tcp_header);
@@ -214,9 +216,9 @@ get_next_packet:
 
   if((header.permissions2 & 16) == 16 && (header.permissions2 & 2) == 2)
   {
-    this->sendack = header.seqNum - 1;
+    this->sendack = header.seqNum;
     this->remoteBaseSeqNumber = this->sendack;
-    this->sendPacket("ACK PACKET",this->seqnumber + 1);
+    this->sendPacket("ACK PACKET",this->seqnumber);
     this->connectionEstablished = true;
   }
   else
@@ -240,15 +242,6 @@ tcp::tcp() {
   this->recvack = 0;
   this->numacks = 0;
   this->packetTimeout = false;
-  pthread_mutex_t acklock;
-  pthread_mutex_t pktloss;
-  pthread_mutex_t timeoutlock;
-  bool packetTimeout;
-  char dataBuffer[BUF_SIZE_OS];
-  bool bitmapReceive[BUF_SIZE_OS];
-  int head;
-  int tail;
-  int remoteBaseSeqNumber;
 }
 
 int tcp::getCWsize() {
@@ -264,6 +257,9 @@ int tcp::send(string &data) {
     bool retransmit = false;
     pthread_mutex_lock(&timeoutlock);
     if(packetTimeout){
+      cout << "came here" << endl;
+      cout << "recvack" << recvack << endl;
+      cout << "origseq" << origseqnum << endl;
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       packetTimeout = false;
@@ -298,6 +294,7 @@ int tcp::send(string &data) {
       acknum = 0;
     }
     pthread_mutex_unlock(&acklock);
+    cout << "i" << i << endl;
     if(sendPacket(data.substr(i,bytestosend), acknum)){
       i+=bytestosend;
     }
@@ -327,7 +324,6 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   cout << "bytes" << bytessend << endl;
   cout << "length" << header->length << endl;
   cout << "seqnum" << header->seqNum << endl;
-  delete buf;
 
   thread_args *t_arg = new thread_args();
 
@@ -338,10 +334,12 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
       t_arg->seqNum = header->seqNum;
       pthread_create(timeoutthread,NULL,checktimeout,t_arg);
     }
+    delete buf;
     return true;
   } else {
     seqnumber -= ( retransmission ? 0: data.length()  ) ;
   }
+  delete buf;
   return false;
 }
 
