@@ -253,10 +253,11 @@ int tcp::getCWsize() {
 
 int tcp::send(string &data) {
   int acknum,bytestosend,origseqnum = seqnumber;
+  int i=0;
   pthread_mutex_lock(&acklock);
   datatosend = data.length();
   pthread_mutex_unlock(&acklock);
-  for(int i=0;i<data.length();) {
+  while((recvack < seqnumber) || (i<data.length())) {
     bool retransmit = false;
     pthread_mutex_lock(&timeoutlock);
     if(packetTimeout){
