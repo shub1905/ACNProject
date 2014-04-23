@@ -77,6 +77,7 @@ void tcp::receiveLoop() {
       memcpy((char *)&header,buffer,sizeof(tcp_header));
 
       if ((header.permissions2 & 0x10) == 0x10) {
+	/* Calculation */
 	pthread_mutex_lock(&pktloss);
 	if (header.ackNum > this->recvack) {
 	  this->recvack = header.ackNum;
@@ -109,11 +110,12 @@ void tcp::receiveLoop() {
 	pthread_mutex_lock(&acklock);
 	if (datatosend > 0) {
 	  sendack = this->seqnumberRemote;
+	  sendacktime = header.time;
 	  pthread_mutex_unlock(&acklock);
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
-	  sendPacket("",header.seqNum);
+	  sendPacket("",header.seqNum, false, false, false, header.time);
 	}
 	//access ends
       }
@@ -242,6 +244,7 @@ tcp::tcp() {
   this->head=this->tail=0;
   this->datatosend = 0;
   this->sendack = 0; //to set
+  this->sendacktime = dummyDefaultTimeval();
   this->recvack = 0;
   this->numacks = 0;
   this->packetTimeout = false;
@@ -253,6 +256,7 @@ int tcp::getCWsize() {
 
 int tcp::send(string &data) {
   int acknum,bytestosend,origseqnum = seqnumber;
+  struct timeval ack_time;
   int i=0;
   pthread_mutex_lock(&acklock);
   datatosend = data.length();
@@ -293,12 +297,21 @@ int tcp::send(string &data) {
     datatosend-=bytestosend;
     if(sendack){
       acknum = sendack;
+      ack_time = sendacktime;
       sendack = 0;
+      sendacktime = dummyDefaultTimeval();
     }
     else{
       acknum = 0;
     }
     pthread_mutex_unlock(&acklock);
+
+    if(bytestosend == 0) {
+      if(datatosend > 0) {
+	cerr << "ALERT: There is data to send but we are not sending anything :(" << endl;
+      }
+      continue;
+    }
     if(DEBUG)
       cout << "i" << i << endl;
     if(sendPacket(data.substr(i,bytestosend), acknum)){
@@ -311,7 +324,7 @@ int tcp::send(string &data) {
   return data.length();
 }
 
-bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmission) {
+bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmission, struct timeval ack_time) {
   char * buf = new char[sizeof(tcp_header)+data.length()+1];
   memset(buf,0,sizeof(tcp_header));
   tcp_header * header = (tcp_header *)buf;
@@ -322,10 +335,12 @@ bool tcp::sendPacket(string data,int acknum, bool syn,bool fin,bool retransmissi
   header->permissions2|= (acknum>0 ? (16)  : 0);
   header->permissions2|= ( syn ?(2) : 0);
   header->permissions2|= (fin ? (1) :0  );
+  header->ackTime = ack_time;
   strncpy(buf+sizeof(tcp_header),data.c_str(),data.length()); /*Assumes '\0' is appended*/
 
   int packetsize = header->length + 1 ;
   //	assert packetsize (<UDPPACKETSIZE);
+  gettimeofday(&header->time,NULL);
   int bytessend = sendto(sock, buf , packetsize, 0,(struct sockaddr *) &remoteAddress,sizeof(remoteAddress));
   if(KNOWL)
     cout << "Packet sent. Bytes sent : " << data.length() << endl;

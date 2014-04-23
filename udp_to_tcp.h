@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h> /* memset() */
-#include <sys/time.h> /* select() */ 
+#include <sys/time.h>
 #include <stdlib.h>
 #include <cstdlib>
 #include <pthread.h>
@@ -42,6 +42,8 @@ typedef struct tcp_header
   short windowSize;
   short checksum;
   short urgentPointer;
+  struct timeval time;
+  struct timeval ackTime;
 } tcp_header;
 
 class tcp {
@@ -55,6 +57,7 @@ class tcp {
     int seqnumberRemote;
     int datatosend;
     int sendack; //to set
+    struct timeval sendacktime;
     int recvack;
     int numacks;
     pthread_mutex_t acklock;
@@ -75,7 +78,7 @@ class tcp {
     int receive(string &data);
     void receiveLoop();
     bool receivePacket(char *data);
-    bool sendPacket(string , int = 0, bool = false, bool = false, bool = false);
+    bool sendPacket(string , int = 0, bool = false, bool = false, bool = false, struct timeval = dummyDefaultTimeval());
     int getCWsize();
 
     static void * checktimeout(void *temp_arg) {
@@ -101,5 +104,10 @@ class tcp {
     static void * dummyReceiveLoop(void *object) {
       ((tcp *)object)->receiveLoop();
       return NULL;
+    }
+
+    static struct timeval dummyDefaultTimeval() {
+      struct timeval default_time;
+      return default_time;
     }
 };
