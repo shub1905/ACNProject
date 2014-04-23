@@ -86,11 +86,17 @@ void tcp::receiveLoop() {
 	  this->numacks++;
 	}
 	pthread_mutex_unlock(&pktloss);
+      } else {
+	cout << "Received Packet with seqNum " << header.seqNum << endl;
       }
 
       lengthDataRecv = header.length - sizeof(tcp_header);
       if (lengthDataRecv > 0 ) {
-
+	if(header.seqNum < this->seqnumberRemote) {
+	  if(KNOWL)
+	    cout << "Already had this packet with seqNum " << header.seqNum << endl;
+	  continue;
+	}
 	int diff = (head - tail + BUF_SIZE_OS - 1)%BUF_SIZE_OS;
 	if (header.seqNum - this->seqnumberRemote >= diff) {
 	  if(KNOWL)
@@ -115,6 +121,7 @@ void tcp::receiveLoop() {
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
+	  cout << "Sending an ACK for seq num " << this->seqnumberRemote << endl;
 	  sendPacket("",this->seqnumberRemote, false, false, false, header.time);
 	}
 	//access ends
@@ -288,6 +295,7 @@ int tcp::send(string &data) {
       int lastackdata = recvack - origseqnum;
       i = lastackdata;
       retransmit = true;
+      this->numacks = 0;
     }
     pthread_mutex_unlock(&pktloss);
 

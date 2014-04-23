@@ -18,8 +18,8 @@
 #define MAX_MSG 100
 #define TIMEOUT_VAL 2
 #define PACKETSIZE 1500
-#define CWSIZE 100
-#define TIMEOUT 5
+#define CWSIZE 15000
+#define TIMEOUT 10
 #define BUF_SIZE_OS 1000000
 
 using namespace std;
@@ -89,6 +89,7 @@ class tcp {
       sleep(TIMEOUT);
       if(seqNumsent > object->recvack)
       {
+	cout << "Got a timeout. SeqNumSent " << seqNumsent << "Recvack " << object->recvack << endl;
 	pthread_mutex_lock(&(object->timeoutlock));	
 	if(object->packetTimeout)
 	{

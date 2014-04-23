@@ -13,7 +13,6 @@ int main(int argc, char **argv)
   while(true) 
   {
     bytes_received = u.receive(something);
-    cout << something << endl;
   }
   while(true);
 }
