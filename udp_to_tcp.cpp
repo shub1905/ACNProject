@@ -1,6 +1,6 @@
 #include "udp_to_tcp.h"
 #define DEBUG false
-#define KNOWL true
+#define KNOWL false
 
 void tcp::listen() {
   int sd, rc, n;
@@ -115,7 +115,7 @@ void tcp::receiveLoop() {
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
-	  sendPacket("",header.seqNum, false, false, false, header.time);
+	  sendPacket("",this->seqnumberRemote, false, false, false, header.time);
 	}
 	//access ends
       }
@@ -127,8 +127,14 @@ void tcp::receiveLoop() {
 }
 
 int tcp::receive(string &data) {
-  int orig_tail = tail;
-  int totalread = (orig_tail +BUF_SIZE_OS - head) % BUF_SIZE_OS;
+  data.resize(0);
+  int orig_tail, totalread;
+  do {
+    orig_tail = tail;
+    totalread = (orig_tail +BUF_SIZE_OS - head) % BUF_SIZE_OS;
+  }while(totalread == 0);
+  data.resize(totalread);
+
   for(int i=0;i<totalread;i++) {
     data[i] = dataBuffer[(head+i) % BUF_SIZE_OS];
     this->bitmapReceive[(head+i) % BUF_SIZE_OS] = false;
@@ -223,6 +229,7 @@ get_next_packet:
   {
     this->sendack = header.seqNum;
     this->remoteBaseSeqNumber = this->sendack;
+    this->seqnumberRemote = this->sendack;
     this->sendPacket("ACK PACKET",this->seqnumber);
     this->connectionEstablished = true;
   }

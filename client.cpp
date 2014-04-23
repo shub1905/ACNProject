@@ -7,9 +7,13 @@ int main(int argc, char **argv)
   u.establish();
   cout << "Client Connection Established" << endl;
   string something;
+  int bytes_received = 0;
+  int counter;
+  int i;
   while(true) 
   {
-    u.receive(something);
+    bytes_received = u.receive(something);
+    cout << something << endl;
   }
   while(true);
 }
