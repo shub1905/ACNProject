@@ -18,9 +18,13 @@
 #define MAX_MSG 100
 #define TIMEOUT_VAL 2
 #define PACKETSIZE 1500
-#define CWSIZE 15000
-#define TIMEOUT 10
+#define BASE_CONGESTION_WINDOW_SIZE 15000.0
+#define TIMEOUT 5
 #define BUF_SIZE_OS 1000000
+#define SS_THRESHOLD 16*BASE_CONGESTION_WINDOW_SIZE
+#define ALPHA 1.65
+#define ALPHA_EXP .7
+#define MINRTT_INIT 100000000.0
 
 using namespace std;
 
@@ -63,12 +67,15 @@ class tcp {
     pthread_mutex_t acklock;
     pthread_mutex_t pktloss;
     pthread_mutex_t timeoutlock;
+    pthread_mutex_t cwlock;
     bool packetTimeout;
     char dataBuffer[BUF_SIZE_OS];
     bool bitmapReceive[BUF_SIZE_OS];
     int head;
     int tail;
     int remoteBaseSeqNumber;
+    double current_window_size;
+    double rtt,minrtt;
 
     tcp();
     int establish();
@@ -80,6 +87,7 @@ class tcp {
     bool receivePacket(char *data);
     bool sendPacket(string , int = 0, bool = false, bool = false, bool = false, struct timeval = dummyDefaultTimeval());
     int getCWsize();
+    double fast_increase(double);
 
     static void * checktimeout(void *temp_arg) {
       thread_args *t_arg = (thread_args *)temp_arg;

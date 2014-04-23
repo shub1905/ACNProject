@@ -62,6 +62,11 @@ retry_receive:
   pthread_create(receive_thread,NULL,dummyReceiveLoop,this);
 }
 
+
+double tcp::fast_increase(double cwsize){
+	return 0.01*cwsize;
+}
+
 void tcp::receiveLoop() {
   //use 3rd last bit of permissions2 for EOF flag	
   //tcp_header.length = length of total packet
@@ -78,6 +83,40 @@ void tcp::receiveLoop() {
 
       if ((header.permissions2 & 0x10) == 0x10) {
 	/* Calculation */
+	/*
+	calculate rtt,rttmin
+	*/
+	struct timeval curtime, oldtime;
+	oldtime = header.ackTime;
+	gettimeofday(&curtime,NULL);	
+	
+	double currentrtt = 1000000*(curtime.tv_sec-oldtime.tv_sec) + curtime.tv_usec - oldtime.tv_usec;
+	minrtt = min(minrtt,currentrtt);
+	rtt = ALPHA_EXP*rtt + (1-ALPHA_EXP)*currentrtt;
+	
+	pthread_mutex_lock(&cwlock);
+	if(current_window_size < SS_THRESHOLD)
+		current_window_size++;
+	else{
+		bool slowmode = false;
+		if (current_window_size*(rtt -minrtt) > ALPHA*rtt ) 	
+			slowmode = true;
+		else
+			slowmode = false;	
+		
+		if(slowmode){
+			current_window_size+= (1/current_window_size);		
+		}
+		else{
+			current_window_size+=(fast_increase(current_window_size)/current_window_size);
+		}
+		
+	}	
+	pthread_mutex_unlock(&cwlock);
+	
+	
+	
+	
 	pthread_mutex_lock(&pktloss);
 	if (header.ackNum > this->recvack) {
 	  this->recvack = header.ackNum;
@@ -254,6 +293,7 @@ tcp::tcp() {
   pthread_mutex_init(&acklock,NULL);
   pthread_mutex_init(&pktloss,NULL);
   pthread_mutex_init(&timeoutlock,NULL);
+  pthread_mutex_init(&cwlock,NULL);
   memset(this->bitmapReceive,false,BUF_SIZE_OS);
   this->head=this->tail=0;
   this->datatosend = 0;
@@ -262,10 +302,13 @@ tcp::tcp() {
   this->recvack = 0;
   this->numacks = 0;
   this->packetTimeout = false;
+  this->minrtt = MINRTT_INIT;
+  this->rtt = MINRTT_INIT;
+  this->current_window_size = BASE_CONGESTION_WINDOW_SIZE;
 }
 
 int tcp::getCWsize() {
-  return CWSIZE;
+  return int(current_window_size);
 }
 
 int tcp::send(string &data) {
@@ -285,6 +328,9 @@ int tcp::send(string &data) {
       i = lastackdata;
       packetTimeout = false;
       retransmit = true;
+      pthread_mutex_lock(&cwlock);
+      current_window_size = BASE_CONGESTION_WINDOW_SIZE;
+      pthread_mutex_unlock(&cwlock);
     }
     pthread_mutex_unlock(&timeoutlock);
 
@@ -296,6 +342,9 @@ int tcp::send(string &data) {
       i = lastackdata;
       retransmit = true;
       this->numacks = 0;
+      pthread_mutex_lock(&cwlock);
+      current_window_size = max(BASE_CONGESTION_WINDOW_SIZE,current_window_size/2);
+      pthread_mutex_unlock(&cwlock);
     }
     pthread_mutex_unlock(&pktloss);
 
