@@ -114,6 +114,12 @@ class tcp {
       ((tcp *)object)->receiveLoop();
       return NULL;
     }
+    static void * ackLoop(void * object){
+    	while(true){
+    		sleep(TIMEOUT);
+    		((tcp *)object)->sendPacket("",((tcp *)object)->seqnumberRemote);
+    	}
+    }
 
     static struct timeval dummyDefaultTimeval() {
       struct timeval default_time;

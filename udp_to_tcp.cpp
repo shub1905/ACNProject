@@ -60,6 +60,10 @@ retry_receive:
   }
   pthread_t* receive_thread = new pthread_t();
   pthread_create(receive_thread,NULL,dummyReceiveLoop,this);
+  
+  pthread_t * ack_thread = new pthread_t();
+  pthread_create(ack_thread,NULL, ackLoop,this);
+  
 }
 
 
