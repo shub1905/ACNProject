@@ -95,9 +95,11 @@ void tcp::receiveLoop() {
 	minrtt = min(minrtt,currentrtt);
 	rtt = ALPHA_EXP*rtt + (1-ALPHA_EXP)*currentrtt;
 	
+	cerr<<"RTT: "<<rtt<<"\tCurrent RTT: "<<currentrtt<<"\tMINRTT: "<<minrtt<<endl;
+	
 	pthread_mutex_lock(&cwlock);
 	if(current_window_size < SS_THRESHOLD)
-		current_window_size++;
+		current_window_size+=PACKETSIZE;
 	else{
 		bool slowmode = false;
 		if (current_window_size*(rtt -minrtt) > ALPHA*rtt ) 	
@@ -106,10 +108,10 @@ void tcp::receiveLoop() {
 			slowmode = false;	
 		
 		if(slowmode){
-			current_window_size+= (1/current_window_size);		
+			current_window_size+= ((PACKETSIZE*PACKETSIZE)/current_window_size);		
 		}
 		else{
-			current_window_size+=(fast_increase(current_window_size)/current_window_size);
+			current_window_size+=((fast_increase(current_window_size)*PACKETSIZE)/current_window_size);
 		}
 		
 	}	
@@ -311,6 +313,7 @@ tcp::tcp() {
 }
 
 int tcp::getCWsize() {
+ // cerr << "Window size " << current_window_size/PACKETSIZE<<endl;
   return int(current_window_size);
 }
 
