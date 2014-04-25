@@ -25,6 +25,8 @@
 #define ALPHA 1.65
 #define ALPHA_EXP .7
 #define MINRTT_INIT 100000000.0
+#define DEBUG false
+#define KNOWL false
 
 using namespace std;
 
@@ -97,7 +99,8 @@ class tcp {
       sleep(TIMEOUT);
       if(seqNumsent > object->recvack)
       {
-	cout << "Got a timeout. SeqNumSent " << seqNumsent << "Recvack " << object->recvack << endl;
+	if(KNOWL)
+	  cout << "Got a timeout. SeqNumSent " << seqNumsent << "Recvack " << object->recvack << endl;
 	pthread_mutex_lock(&(object->timeoutlock));	
 	if(object->packetTimeout)
 	{

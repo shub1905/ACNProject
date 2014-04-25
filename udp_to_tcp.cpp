@@ -1,6 +1,4 @@
 #include "udp_to_tcp.h"
-#define DEBUG false
-#define KNOWL false
 
 void tcp::listen() {
   int sd, rc, n;
@@ -66,7 +64,6 @@ retry_receive:
   
 }
 
-
 double tcp::fast_increase(double cwsize){
 	return 0.01*cwsize;
 }
@@ -130,7 +127,8 @@ void tcp::receiveLoop() {
 	}
 	pthread_mutex_unlock(&pktloss);
       } else {
-	cout << "Received Packet with seqNum " << header.seqNum << endl;
+	if(KNOWL)
+	  cout << "Received Packet with seqNum " << header.seqNum << endl;
       }
 
       lengthDataRecv = header.length - sizeof(tcp_header);
@@ -164,7 +162,8 @@ void tcp::receiveLoop() {
 	}
 	else {
 	  pthread_mutex_unlock(&acklock);
-	  cout << "Sending an ACK for seq num " << this->seqnumberRemote << endl;
+	  if(KNOWL)
+	    cout << "Sending an ACK for seq num " << this->seqnumberRemote << endl;
 	  sendPacket("",this->seqnumberRemote, false, false, false, header.time);
 	}
 	//access ends

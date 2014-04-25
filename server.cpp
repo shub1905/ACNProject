@@ -2,17 +2,22 @@
 
 int main()
 {
+  struct timeval start_time,end_time;
+  double total_time = 0;
   tcp t;
   t.listen();
-  cout << "Server Connection Established" << endl;
-  string tmp = "This is a hello world kind of string";
+  cerr << "Server Connection Established" << endl;
   string arbit;
-      for(int i=0;i<10000;i++) {
-      arbit = arbit+tmp;
-    }
-  for(int j=0;j<100;j++) { 
+  while(getline(cin, arbit)) {
+    arbit += "\n";
+    gettimeofday(&start_time,NULL);
     t.send(arbit);
+    gettimeofday(&end_time,NULL);
+    total_time += (end_time.tv_sec - start_time.tv_sec)*1000000 + (end_time.tv_usec - start_time.tv_usec);
   }
-  cout << "The send was successful" << endl;
-  while(true);
+  arbit = "\04";
+  t.send(arbit);
+  cerr << "The send was successful" << endl;
+  cerr << "Total Time : " << total_time/1000000.0 << endl;
+  exit(0);
 }
