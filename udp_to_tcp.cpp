@@ -95,7 +95,7 @@ void tcp::receiveLoop() {
 	minrtt = min(minrtt,currentrtt);
 	rtt = ALPHA_EXP*rtt + (1-ALPHA_EXP)*currentrtt;
 	long long currenttime = 1000000*(curtime.tv_sec) + curtime.tv_usec ;
-	cerr<<"RTT: "<<rtt<<"\tCurrent RTT: "<<currentrtt<<"\tMINRTT: "<<minrtt<<"\tCW SIZE: "<<current_window_size<<"\tCurtime: "<<currenttime<<endl;
+	cerr<<"RTT: "<<rtt<<"\t Current RTT: "<<currentrtt<<"\t MINRTT: "<<minrtt<<"\t CW SIZE: "<<current_window_size<<"\t Curtime: "<<currenttime<<endl;
 	
 	pthread_mutex_lock(&cwlock);
 	if(current_window_size < this->ss_threshold)
@@ -314,7 +314,7 @@ tcp::tcp() {
   this->minrtt = MINRTT_INIT;
   this->rtt = MINRTT_INIT;
   this->current_window_size = BASE_CONGESTION_WINDOW_SIZE;
-  this->ss_threshold = 16*BASE_CONGESTION_WINDOW_SIZE;
+  this->ss_threshold = 160*PACKETSIZE;
   
 }
 
@@ -354,9 +354,9 @@ int tcp::send(string &data) {
       i = lastackdata;
       retransmit = true;
       this->numacks = 0;
-      this->ss_threshold = current_window_size/2; 
+      this->ss_threshold = current_window_size*0.875; 
       pthread_mutex_lock(&cwlock);
-      current_window_size = max(BASE_CONGESTION_WINDOW_SIZE,current_window_size/2);
+      current_window_size = max(BASE_CONGESTION_WINDOW_SIZE,this->ss_threshold);
       pthread_mutex_unlock(&cwlock);
     }
     pthread_mutex_unlock(&pktloss);

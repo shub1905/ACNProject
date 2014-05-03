@@ -19,13 +19,13 @@
 #define TIMEOUT_VAL 2
 #define PACKETSIZE 1500
 #define BASE_CONGESTION_WINDOW_SIZE 15000.0
-#define TIMEOUT 5
+#define TIMEOUT 3
 #define BUF_SIZE_OS 1000000
 #define ALPHA 5
-#define ALPHA_EXP .7
+#define ALPHA_EXP .5
 #define MINRTT_INIT 100000000.0
-#define DEBUG true 
-#define KNOWL true
+#define DEBUG false
+#define KNOWL false
 
 using namespace std;
 
@@ -120,7 +120,7 @@ class tcp {
     }
     static void * ackLoop(void * object){
     	while(true){
-    		sleep(TIMEOUT);
+    		sleep(1);
     		((tcp *)object)->sendPacket("",((tcp *)object)->seqnumberRemote);
     	}
     }
