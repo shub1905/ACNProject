@@ -21,7 +21,6 @@
 #define BASE_CONGESTION_WINDOW_SIZE 15000.0
 #define TIMEOUT 5
 #define BUF_SIZE_OS 1000000
-#define SS_THRESHOLD 16*BASE_CONGESTION_WINDOW_SIZE
 #define ALPHA 1.65
 #define ALPHA_EXP .7
 #define MINRTT_INIT 100000000.0
@@ -78,6 +77,8 @@ class tcp {
     int remoteBaseSeqNumber;
     double current_window_size;
     double rtt,minrtt;
+    double ss_threshold;
+
 
     tcp();
     int establish();

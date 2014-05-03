@@ -98,7 +98,7 @@ void tcp::receiveLoop() {
 	cerr<<"RTT: "<<rtt<<"\tCurrent RTT: "<<currentrtt<<"\tMINRTT: "<<minrtt<<"\tCW SIZE: "<<current_window_size<<"\tCurtime: "<<currenttime<<endl;
 	
 	pthread_mutex_lock(&cwlock);
-	if(current_window_size < SS_THRESHOLD)
+	if(current_window_size < this->ss_threshold)
 		current_window_size+=PACKETSIZE;
 	else{
 		bool slowmode = false;
@@ -310,6 +310,8 @@ tcp::tcp() {
   this->minrtt = MINRTT_INIT;
   this->rtt = MINRTT_INIT;
   this->current_window_size = BASE_CONGESTION_WINDOW_SIZE;
+  this->ss_threshold = 16*BASE_CONGESTION_WINDOW_SIZE;
+  
 }
 
 int tcp::getCWsize() {
@@ -334,6 +336,7 @@ int tcp::send(string &data) {
       i = lastackdata;
       packetTimeout = false;
       retransmit = true;
+      this->ss_threshold = current_window_size/2; 
       pthread_mutex_lock(&cwlock);
       current_window_size = BASE_CONGESTION_WINDOW_SIZE;
       pthread_mutex_unlock(&cwlock);
@@ -348,6 +351,7 @@ int tcp::send(string &data) {
       i = lastackdata;
       retransmit = true;
       this->numacks = 0;
+      this->ss_threshold = current_window_size/2; 
       pthread_mutex_lock(&cwlock);
       current_window_size = max(BASE_CONGESTION_WINDOW_SIZE,current_window_size/2);
       pthread_mutex_unlock(&cwlock);
