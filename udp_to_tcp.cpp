@@ -290,6 +290,10 @@ get_next_packet:
   }
   pthread_t* receive_thread = new pthread_t();
   pthread_create(receive_thread,NULL,dummyReceiveLoop,this);
+
+  pthread_t * ack_thread = new pthread_t();
+  pthread_create(ack_thread,NULL, ackLoop,this);
+
   return this->sock;
 }
 
@@ -315,7 +319,6 @@ tcp::tcp() {
 }
 
 int tcp::getCWsize() {
- // cerr << "Window size " << current_window_size/PACKETSIZE<<endl;
   return int(current_window_size);
 }
 
@@ -364,7 +367,10 @@ int tcp::send(string &data) {
     if(retransmit){
       seqnumber  = recvack;
     }
-    if( (seqnumber - recvack ) > getCWsize()){
+    int congestion_window_local = getCWsize();
+    if( (seqnumber - recvack ) > congestion_window_local){
+      if(KNOWL)
+	cout << "Continuing" << "\t" << seqnumber << "\t" << recvack << "\t" << congestion_window_local << endl;
       pthread_mutex_unlock(&acklock);
       continue;
     }

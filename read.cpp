@@ -4,7 +4,7 @@
 using namespace std;
 
 main() {
-	FILE *f = fopen("100mb_file", "r");
+	FILE *f = fopen("700mb_file", "r");
 	fseek(f, 0, SEEK_END);
 	long fsize = ftell(f);
 	fseek(f, 0, SEEK_SET);
