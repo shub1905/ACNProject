@@ -21,7 +21,7 @@
 #define BASE_CONGESTION_WINDOW_SIZE 15000.0
 #define TIMEOUT 5
 #define BUF_SIZE_OS 1000000
-#define ALPHA 1.65
+#define ALPHA 10
 #define ALPHA_EXP .7
 #define MINRTT_INIT 100000000.0
 #define DEBUG false

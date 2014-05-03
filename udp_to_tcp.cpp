@@ -102,7 +102,7 @@ void tcp::receiveLoop() {
 		current_window_size+=PACKETSIZE;
 	else{
 		bool slowmode = false;
-		if (current_window_size*(rtt -minrtt) > ALPHA*rtt ) 	
+		if (current_window_size*(rtt -minrtt) > PACKETSIZE*ALPHA*rtt ) 	
 			slowmode = true;
 		else
 			slowmode = false;	
