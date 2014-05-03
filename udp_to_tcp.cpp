@@ -94,7 +94,7 @@ void tcp::receiveLoop() {
 	double currentrtt = 1000000*(curtime.tv_sec-oldtime.tv_sec) + curtime.tv_usec - oldtime.tv_usec;
 	minrtt = min(minrtt,currentrtt);
 	rtt = ALPHA_EXP*rtt + (1-ALPHA_EXP)*currentrtt;
-	double currenttime = 1000000*(curtime.tv_sec) + curtime.tv_usec ;
+	long long currenttime = 1000000*(curtime.tv_sec) + curtime.tv_usec ;
 	cerr<<"RTT: "<<rtt<<"\tCurrent RTT: "<<currentrtt<<"\tMINRTT: "<<minrtt<<"\tCW SIZE: "<<current_window_size<<"\tCurtime: "<<currenttime<<endl;
 	
 	pthread_mutex_lock(&cwlock);
